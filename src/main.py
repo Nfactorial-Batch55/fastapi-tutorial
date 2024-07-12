@@ -1,10 +1,10 @@
 from typing import Union
-from fastapi import FastAPI
-from sqlmodel import Session
+from fastapi import FastAPI, HTTPException
+from sqlmodel import Session, select
 from pydantic import BaseModel
 from enum import Enum
 from config.db_connect import engine
-from models import Hero
+from models import Hero, HeroCreate, HeroUpdate
 
 app = FastAPI()
 
@@ -21,6 +21,50 @@ class ModelName(str, Enum):
     lenet = "lenet"
 
 
+@app.post('/create')
+def create_hero(hero: HeroCreate):
+    with Session(engine) as session:
+        db_hero = Hero.model_validate(hero)
+        session.add(db_hero)
+        session.commit()
+
+
+@app.get('/read-list')
+def select_heroes():
+    with Session(engine) as session:
+        statement = select(Hero)
+        results = session.exec(statement)
+        return results.all()
+
+
+@app.patch("/heroes/{hero_id}")
+def update_hero(hero_id: int, hero: HeroUpdate):
+    with Session(engine) as session:
+        db_hero = session.get(Hero, hero_id)
+        if not db_hero:
+            raise HTTPException(status_code=404, detail="Hero not found")
+
+        hero_data = hero.model_dump(exclude_unset=True)
+
+        db_hero.sqlmodel_update(hero_data)
+
+        session.add(db_hero)
+        session.commit()
+        session.refresh(db_hero)
+        return db_hero
+
+
+@app.delete("/heroes/{hero_id}")
+def delete_hero(hero_id: int):
+    with Session(engine) as session:
+        hero = session.get(Hero, hero_id)
+        if not hero:
+            raise HTTPException(status_code=404, detail="Hero not found")
+        session.delete(hero)
+        session.commit()
+        return {"ok": True}
+
+
 @app.get('/create-thee-obj')
 def create_thee_obj():
     hero_1 = Hero(name="Deadpond", secret_name="Dive Wilson")
@@ -31,6 +75,7 @@ def create_thee_obj():
         session.add(hero_2)
         session.add(hero_3)
         session.commit()
+
 
 @app.get("/models/{model_name}")
 async def get_model(model_name: ModelName):
