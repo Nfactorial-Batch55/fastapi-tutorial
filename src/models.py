@@ -13,6 +13,7 @@ class HeroCreate(SQLModel):
     name: str
     secret_name: str
     age: Optional[int] = None
+    is_woman: Optional[bool] = False
 
 
 class Hero(HeroCreate, table=True):
